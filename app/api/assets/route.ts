@@ -1,28 +1,16 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/app/lib/mongodb';
-import Asset from '@/app/models/Asset';
+import OfficeAsset from '@/app/models/OfficeAsset';
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url);
-    const departmentId = searchParams.get('departmentId');
-
-    if (!departmentId) {
-      return NextResponse.json(
-        { message: 'Department ID is required' },
-        { status: 400 }
-      );
-    }
-
     await connectDB();
-
-    const assets = await Asset.find({ departmentId }).sort({ createdAt: -1 });
-
-    return NextResponse.json({ assets });
+    const assets = await OfficeAsset.find().sort({ createdAt: -1 });
+    return NextResponse.json(assets);
   } catch (error) {
     console.error('Error fetching assets:', error);
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: 'Error fetching assets' },
       { status: 500 }
     );
   }
@@ -30,35 +18,53 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { departmentId, name, category, quantity } = await request.json();
+    const body = await request.json();
+    
+    // Validate required fields
+    const requiredFields = ['type', 'assetNumber', 'model', 'quantity', 'certificateUrl', 'location', 'department'];
+    for (const field of requiredFields) {
+      if (!body[field]) {
+        return NextResponse.json(
+          { message: `Missing required field: ${field}` },
+          { status: 400 }
+        );
+      }
+    }
 
-    // Validate input
-    if (!departmentId || !name || !category || !quantity) {
+    // Validate asset type
+    const validTypes = ['system', 'table', 'chair', 'employee'];
+    if (!validTypes.includes(body.type)) {
       return NextResponse.json(
-        { message: 'All fields are required' },
+        { message: 'Invalid asset type' },
         { status: 400 }
       );
     }
 
+    // Validate quantity
+    if (body.quantity < 1) {
+      return NextResponse.json(
+        { message: 'Quantity must be at least 1' },
+        { status: 400 }
+      );
+    }
+
+    // Check if asset number already exists
     await connectDB();
+    const existingAsset = await OfficeAsset.findOne({ assetNumber: body.assetNumber });
+    if (existingAsset) {
+      return NextResponse.json(
+        { message: 'Asset number already exists' },
+        { status: 400 }
+      );
+    }
 
     // Create new asset
-    const asset = await Asset.create({
-      departmentId,
-      name,
-      category,
-      quantity,
-      status: 'pending',
-    });
-
-    return NextResponse.json(
-      { message: 'Asset created successfully', asset },
-      { status: 201 }
-    );
+    const asset = await OfficeAsset.create(body);
+    return NextResponse.json(asset, { status: 201 });
   } catch (error) {
     console.error('Error creating asset:', error);
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: 'Error creating asset' },
       { status: 500 }
     );
   }
