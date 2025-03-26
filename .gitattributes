@@ -13,6 +13,8 @@
 *.md text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+.gitignore text eol=lf
+.next/trace text eol=lf
 
 # Binary files
 *.png binary
@@ -23,24 +25,6 @@
 *.woff2 binary
 *.ttf binary
 *.eot binary
-*.pdf binary
-*.swf binary
-*.svgz binary
-*.zip binary
-*.gz binary
-*.bz2 binary
-*.exe binary
-*.dll binary
-*.obj binary
-*.lib binary
-*.class binary
-*.so binary
-*.dylib binary
-*.dmg binary
-*.ttf binary
-*.eot binary
-*.woff binary
-*.woff2 binary
 *.pdf binary
 *.swf binary
 *.svgz binary
