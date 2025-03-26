@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import connectDB from '@/app/lib/mongodb';
-import OfficeAsset from '@/app/models/OfficeAsset';
+import { connectDB } from '../../lib/db';
+import OfficeAsset from '../../models/OfficeAsset';
 
 export async function GET() {
   try {
     await connectDB();
-    const assets = await OfficeAsset.find().sort({ createdAt: -1 });
+    const assets = await OfficeAsset.find({});
     return NextResponse.json(assets);
   } catch (error) {
     console.error('Error fetching assets:', error);

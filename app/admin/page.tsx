@@ -3,172 +3,224 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface Asset {
   _id: string;
-  departmentId: string;
   name: string;
-  category: string;
-  quantity: number;
+  type: string;
   status: string;
+  assignedTo: string;
+  purchaseDate: string;
+  purchasePrice: number;
+  location: string;
+  notes: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
 
   useEffect(() => {
     // Check if user is admin
-    const isAdmin = localStorage.getItem('isAdmin');
+    const isAdmin = localStorage.getItem('isAdmin') === 'true';
     if (!isAdmin) {
-      router.push('/login');
+      router.push('/admin/login');
       return;
     }
 
-    fetchAllAssets();
+    fetchAssets();
   }, [router]);
 
-  const fetchAllAssets = async () => {
+  const fetchAssets = async () => {
     try {
-      const response = await fetch('/api/admin/assets');
-      if (response.ok) {
-        const data = await response.json();
-        setAssets(data.assets);
-      } else {
-        setError('Failed to fetch assets');
+      const response = await fetch('/api/assets');
+      if (!response.ok) {
+        throw new Error('Failed to fetch assets');
       }
+      const data = await response.json();
+      setAssets(data);
     } catch (err) {
-      setError('Something went wrong');
+      console.error('Error fetching assets:', err);
+      setError('Failed to load assets');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleStatusUpdate = async (assetId: string, newStatus: string) => {
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this asset?')) return;
+
     try {
-      const response = await fetch(`/api/assets/${assetId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus }),
+      const response = await fetch(`/api/assets/${id}`, {
+        method: 'DELETE',
       });
 
-      if (response.ok) {
-        fetchAllAssets();
-      } else {
-        const data = await response.json();
-        setError(data.message);
+      if (!response.ok) {
+        throw new Error('Failed to delete asset');
       }
+
+      setAssets(assets.filter(asset => asset._id !== id));
     } catch (err) {
-      setError('Failed to update asset status');
+      console.error('Error deleting asset:', err);
+      setError('Failed to delete asset');
     }
   };
 
+  const filteredAssets = assets?.filter(asset => {
+    if (!asset || typeof asset !== 'object') return false;
+    
+    const matchesSearch = 
+      (asset.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (asset.type?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (asset.assignedTo?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    
+    const matchesType = filterType === 'all' || asset.type === filterType;
+    const matchesStatus = filterStatus === 'all' || asset.status === filterStatus;
+    
+    return matchesSearch && matchesType && matchesStatus;
+  }) || [];
+
+  const handleLogout = () => {
+    localStorage.removeItem('isAdmin');
+    router.push('/admin/login');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <div className="min-h-screen bg-gray-900 text-white p-4">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => router.push('/dashboard')}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+          <button
+            onClick={handleLogout}
+            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors"
           >
-            Back to Dashboard
-          </motion.button>
+            Logout
+          </button>
         </div>
 
         {error && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4"
-          >
+          <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-6">
             {error}
-          </motion.div>
+          </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Total Assets</h3>
+            <p className="text-3xl font-bold text-blue-400">{assets.length}</p>
+          </div>
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Active Assets</h3>
+            <p className="text-3xl font-bold text-green-400">
+              {assets.filter(asset => asset.status === 'active').length}
+            </p>
+          </div>
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold mb-2">Maintenance Required</h3>
+            <p className="text-3xl font-bold text-yellow-400">
+              {assets.filter(asset => asset.status === 'maintenance').length}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg p-6 mb-8">
+          <div className="flex flex-col md:flex-row gap-4 mb-4">
+            <input
+              type="text"
+              placeholder="Search assets..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1 bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              title="Filter by asset type"
+            >
+              <option value="all">All Types</option>
+              <option value="laptop">Laptop</option>
+              <option value="desktop">Desktop</option>
+              <option value="printer">Printer</option>
+              <option value="furniture">Furniture</option>
+            </select>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              title="Filter by asset status"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="maintenance">Maintenance</option>
+              <option value="retired">Retired</option>
+            </select>
+          </div>
+
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Department ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Asset Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Category
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Quantity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+            <table className="w-full">
+              <thead>
+                <tr className="text-left border-b border-gray-700">
+                  <th className="pb-4">Name</th>
+                  <th className="pb-4">Type</th>
+                  <th className="pb-4">Status</th>
+                  <th className="pb-4">Assigned To</th>
+                  <th className="pb-4">Location</th>
+                  <th className="pb-4">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {assets.map((asset) => (
+              <tbody>
+                {filteredAssets.map((asset) => (
                   <motion.tr
                     key={asset._id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="hover:bg-gray-50"
+                    className="border-b border-gray-700"
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {asset.departmentId}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {asset.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {asset.category}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {asset.quantity}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          asset.status === 'approved'
-                            ? 'bg-green-100 text-green-800'
-                            : asset.status === 'rejected'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}
-                      >
-                        {asset.status.charAt(0).toUpperCase() + asset.status.slice(1)}
+                    <td className="py-4">{asset.name}</td>
+                    <td className="py-4">{asset.type}</td>
+                    <td className="py-4">
+                      <span className={`px-2 py-1 rounded text-sm ${
+                        asset.status === 'active' ? 'bg-green-900/50 text-green-400' :
+                        asset.status === 'maintenance' ? 'bg-yellow-900/50 text-yellow-400' :
+                        'bg-red-900/50 text-red-400'
+                      }`}>
+                        {asset.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      {asset.status === 'pending' && (
-                        <>
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleStatusUpdate(asset._id, 'approved')}
-                            className="text-green-600 hover:text-green-900"
-                          >
-                            Approve
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleStatusUpdate(asset._id, 'rejected')}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            Reject
-                          </motion.button>
-                        </>
-                      )}
+                    <td className="py-4">{asset.assignedTo}</td>
+                    <td className="py-4">{asset.location}</td>
+                    <td className="py-4">
+                      <div className="flex gap-2">
+                        <Link
+                          href={`/admin/assets/${asset._id}`}
+                          className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+                        >
+                          Edit
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(asset._id)}
+                          className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </motion.tr>
                 ))}

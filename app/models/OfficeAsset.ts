@@ -1,56 +1,68 @@
 import mongoose from 'mongoose';
 
 const officeAssetSchema = new mongoose.Schema({
-  type: {
+  assetId: {
     type: String,
     required: true,
-    enum: ['system', 'table', 'chair', 'employee']
+    unique: true,
+    trim: true,
   },
-  assetNumber: {
+  assetName: {
     type: String,
     required: true,
-    unique: true
+    trim: true,
   },
-  model: {
+  assetType: {
     type: String,
-    required: true
-  },
-  quantity: {
-    type: Number,
     required: true,
-    min: 0
+    trim: true,
   },
-  certificateUrl: {
+  assignedTo: {
     type: String,
-    required: true
+    required: true,
+    trim: true,
   },
   status: {
     type: String,
-    enum: ['available', 'in-use', 'maintenance', 'retired'],
-    default: 'available'
+    required: true,
+    enum: ['Available', 'In Use', 'Under Maintenance', 'Retired'],
+    default: 'Available',
   },
   location: {
     type: String,
-    required: true
+    required: true,
+    trim: true,
   },
-  department: {
-    type: String,
-    required: true
+  purchaseDate: {
+    type: Date,
+    required: true,
   },
   lastMaintenance: {
-    type: Date
+    type: Date,
+    default: null,
+  },
+  nextMaintenance: {
+    type: Date,
+    default: null,
+  },
+  condition: {
+    type: String,
+    required: true,
+    enum: ['Excellent', 'Good', 'Fair', 'Poor'],
+    default: 'Good',
   },
   notes: {
-    type: String
+    type: String,
+    trim: true,
   },
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   updatedAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
 // Update the updatedAt timestamp before saving
