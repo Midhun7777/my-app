@@ -30,8 +30,11 @@ export default function Home() {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="mt-3 max-w-md mx-auto text-base text-gray-300 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl"
             >
-              Streamline your department's asset management process. Request, track, and manage your resources efficiently.
+              Streamline your department&apos;s asset management process. Request, track, and manage your resources efficiently.
             </motion.p>
+            <p className="text-lg text-gray-600 mb-8">
+              Let&apos;s streamline your asset management process
+            </p>
           </div>
 
           <div className="mt-10 flex justify-center gap-4">

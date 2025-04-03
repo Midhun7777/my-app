@@ -4,35 +4,49 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 
-interface OfficeAsset {
-  _id: string;
-  type: 'system' | 'table' | 'chair' | 'employee';
-  assetNumber: string;
-  model: string;
-  quantity: number;
-  certificateUrl: string;
-  status: 'available' | 'in-use' | 'maintenance' | 'retired';
-  location: string;
-  department: string;
-  lastMaintenance?: Date;
-  notes?: string;
+interface Asset {
+  assetId: string;
+  assetName: string;
+  assetType: string;
+  assignedTo: string | null;
+  status: string;
+  location: string | null;
+  purchaseDate: string | null;
+  lastMaintenance: string | null;
+  nextMaintenance: string | null;
+  condition: string | null;
+  notes: string | null;
+  employeeName?: string;
+  employeeId?: string;
+  section?: string;
+  employeeLevel?: string;
+  idDocument?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export default function AdminAssets() {
   const router = useRouter();
-  const [assets, setAssets] = useState<OfficeAsset[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    type: 'system',
-    assetNumber: '',
-    model: '',
-    quantity: 1,
-    certificateUrl: '',
+    assetId: '',
+    assetName: '',
+    assetType: 'system',
+    assignedTo: '',
     status: 'available',
     location: '',
-    department: '',
-    notes: ''
+    purchaseDate: '',
+    lastMaintenance: '',
+    nextMaintenance: '',
+    condition: '',
+    notes: '',
+    employeeName: '',
+    employeeId: '',
+    section: '',
+    employeeLevel: '',
+    idDocument: ''
   });
 
   useEffect(() => {
@@ -58,6 +72,7 @@ export default function AdminAssets() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      console.log('Submitting asset data:', formData);
       const response = await fetch('/api/admin/assets', {
         method: 'POST',
         headers: {
@@ -66,24 +81,35 @@ export default function AdminAssets() {
         body: JSON.stringify(formData),
       });
 
+      const data = await response.json();
+      console.log('Server response:', { status: response.status, data });
+
       if (response.ok) {
         setFormData({
-          type: 'system',
-          assetNumber: '',
-          model: '',
-          quantity: 1,
-          certificateUrl: '',
+          assetId: '',
+          assetName: '',
+          assetType: 'system',
+          assignedTo: '',
           status: 'available',
           location: '',
-          department: '',
-          notes: ''
+          purchaseDate: '',
+          lastMaintenance: '',
+          nextMaintenance: '',
+          condition: '',
+          notes: '',
+          employeeName: '',
+          employeeId: '',
+          section: '',
+          employeeLevel: '',
+          idDocument: ''
         });
         fetchAssets();
       } else {
-        setError('Failed to add asset');
+        setError(data.message || 'Failed to add asset');
       }
     } catch (err) {
-      setError('Error adding asset');
+      console.error('Error adding asset:', err);
+      setError('Error adding asset: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   };
 
@@ -91,6 +117,7 @@ export default function AdminAssets() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    console.log('Uploading file:', file.name);
     const formData = new FormData();
     formData.append('file', file);
 
@@ -100,14 +127,17 @@ export default function AdminAssets() {
         body: formData,
       });
 
+      const data = await response.json();
+      console.log('Upload response:', { status: response.status, data });
+
       if (response.ok) {
-        const data = await response.json();
-        setFormData(prev => ({ ...prev, certificateUrl: data.url }));
+        setFormData(prev => ({ ...prev, idDocument: data.url }));
       } else {
-        setError('Failed to upload file');
+        setError(data.message || 'Failed to upload file');
       }
     } catch (err) {
-      setError('Error uploading file');
+      console.error('Error uploading file:', err);
+      setError('Error uploading file: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
   };
 
@@ -127,7 +157,7 @@ export default function AdminAssets() {
           animate={{ opacity: 1, y: 0 }}
           className="text-3xl font-bold mb-8"
         >
-          Office Asset Management
+          Asset Management
         </motion.h1>
 
         {error && (
@@ -152,10 +182,12 @@ export default function AdminAssets() {
               <div>
                 <label className="block text-sm font-medium mb-1">Asset Type</label>
                 <select
-                  value={formData.type}
-                  onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value as OfficeAsset['type'] }))}
+                  value={formData.assetType}
+                  onChange={(e) => setFormData(prev => ({ ...prev, assetType: e.target.value }))}
                   className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  title="Select the type of asset"
+                  required
+                  title="Select asset type"
+                  aria-label="Select asset type"
                 >
                   <option value="system">System</option>
                   <option value="table">Table</option>
@@ -165,80 +197,138 @@ export default function AdminAssets() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Asset Number</label>
+                <label className="block text-sm font-medium mb-1">Asset ID</label>
                 <input
                   type="text"
-                  value={formData.assetNumber}
-                  onChange={(e) => setFormData(prev => ({ ...prev, assetNumber: e.target.value }))}
+                  value={formData.assetId}
+                  onChange={(e) => setFormData(prev => ({ ...prev, assetId: e.target.value }))}
                   className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
-                  title="Enter the unique asset number"
                   placeholder="e.g., ASSET-001"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Model</label>
+                <label className="block text-sm font-medium mb-1">Asset Name</label>
                 <input
                   type="text"
-                  value={formData.model}
-                  onChange={(e) => setFormData(prev => ({ ...prev, model: e.target.value }))}
+                  value={formData.assetName}
+                  onChange={(e) => setFormData(prev => ({ ...prev, assetName: e.target.value }))}
                   className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
-                  title="Enter the model number or name"
-                  placeholder="e.g., Dell XPS 15"
+                  placeholder="Enter asset name"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Quantity</label>
-                <input
-                  type="number"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData(prev => ({ ...prev, quantity: parseInt(e.target.value) }))}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  min="1"
-                  required
-                  title="Enter the quantity of assets"
-                  placeholder="Enter quantity"
-                />
-              </div>
+              {formData.assetType === 'employee' ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Employee Name</label>
+                    <input
+                      type="text"
+                      value={formData.employeeName}
+                      onChange={(e) => setFormData(prev => ({ ...prev, employeeName: e.target.value }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required={formData.assetType === 'employee'}
+                      placeholder="Enter employee name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Employee ID</label>
+                    <input
+                      type="text"
+                      value={formData.employeeId}
+                      onChange={(e) => setFormData(prev => ({ ...prev, employeeId: e.target.value }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required={formData.assetType === 'employee'}
+                      placeholder="Enter employee ID"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Section</label>
+                    <input
+                      type="text"
+                      value={formData.section}
+                      onChange={(e) => setFormData(prev => ({ ...prev, section: e.target.value }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required={formData.assetType === 'employee'}
+                      placeholder="Enter section"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Employee Level</label>
+                    <select
+                      value={formData.employeeLevel}
+                      onChange={(e) => setFormData(prev => ({ ...prev, employeeLevel: e.target.value }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required={formData.assetType === 'employee'}
+                      title="Select employee level"
+                      aria-label="Select employee level"
+                    >
+                      <option value="">Select level</option>
+                      <option value="SC">SC</option>
+                      <option value="OS">OS</option>
+                      <option value="Head">Head</option>
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Location</label>
+                    <input
+                      type="text"
+                      value={formData.location}
+                      onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Enter location"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Purchase Date</label>
+                    <input
+                      type="date"
+                      value={formData.purchaseDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, purchaseDate: e.target.value }))}
+                      className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </>
+              )}
 
               <div>
-                <label className="block text-sm font-medium mb-1">Location</label>
-                <input
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                <label className="block text-sm font-medium mb-1">Status</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
                   className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
-                  title="Enter the location of the asset"
-                  placeholder="e.g., Room 101"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Department</label>
-                <input
-                  type="text"
-                  value={formData.department}
-                  onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                  title="Enter the department name"
-                  placeholder="e.g., IT Department"
-                />
+                  title="Select asset status"
+                  aria-label="Select asset status"
+                >
+                  <option value="available">Available</option>
+                  <option value="in-use">In Use</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="retired">Retired</option>
+                </select>
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Certificate</label>
+                <label className="block text-sm font-medium mb-1">
+                  {formData.assetType === 'employee' ? 'ID Document' : 'Certificate'}
+                </label>
                 <input
                   type="file"
                   onChange={handleFileUpload}
                   className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   accept=".pdf,.jpg,.jpeg,.png"
                   required
-                  title="Upload the asset certificate"
+                  title={formData.assetType === 'employee' ? 'Upload ID document' : 'Upload asset certificate'}
+                  aria-label={formData.assetType === 'employee' ? 'Upload ID document' : 'Upload asset certificate'}
                 />
               </div>
 
@@ -249,8 +339,7 @@ export default function AdminAssets() {
                   onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                   className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows={3}
-                  title="Enter any additional notes about the asset"
-                  placeholder="Enter any additional information..."
+                  placeholder="Enter any additional notes"
                 />
               </div>
             </div>
@@ -277,22 +366,42 @@ export default function AdminAssets() {
               <thead>
                 <tr className="text-left border-b border-gray-700">
                   <th className="pb-3">Type</th>
-                  <th className="pb-3">Asset Number</th>
-                  <th className="pb-3">Model</th>
-                  <th className="pb-3">Quantity</th>
+                  <th className="pb-3">ID</th>
+                  <th className="pb-3">Name</th>
+                  {formData.assetType === 'employee' ? (
+                    <>
+                      <th className="pb-3">Employee ID</th>
+                      <th className="pb-3">Section</th>
+                      <th className="pb-3">Level</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="pb-3">Location</th>
+                      <th className="pb-3">Purchase Date</th>
+                    </>
+                  )}
                   <th className="pb-3">Status</th>
-                  <th className="pb-3">Location</th>
-                  <th className="pb-3">Department</th>
                   <th className="pb-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {assets.map((asset) => (
-                  <tr key={asset._id} className="border-b border-gray-700">
-                    <td className="py-3">{asset.type}</td>
-                    <td className="py-3">{asset.assetNumber}</td>
-                    <td className="py-3">{asset.model}</td>
-                    <td className="py-3">{asset.quantity}</td>
+                  <tr key={asset.assetId} className="border-b border-gray-700">
+                    <td className="py-3">{asset.assetType}</td>
+                    <td className="py-3">{asset.assetId}</td>
+                    <td className="py-3">{asset.assetName}</td>
+                    {asset.assetType === 'employee' ? (
+                      <>
+                        <td className="py-3">{asset.employeeId}</td>
+                        <td className="py-3">{asset.section}</td>
+                        <td className="py-3">{asset.employeeLevel}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="py-3">{asset.location}</td>
+                        <td className="py-3">{asset.purchaseDate}</td>
+                      </>
+                    )}
                     <td className="py-3">
                       <span className={`px-2 py-1 rounded-full text-xs ${
                         asset.status === 'available' ? 'bg-green-900/50 text-green-300' :
@@ -303,17 +412,15 @@ export default function AdminAssets() {
                         {asset.status}
                       </span>
                     </td>
-                    <td className="py-3">{asset.location}</td>
-                    <td className="py-3">{asset.department}</td>
                     <td className="py-3">
                       <button
-                        onClick={() => window.open(asset.certificateUrl, '_blank')}
+                        onClick={() => window.open(asset.idDocument, '_blank')}
                         className="text-blue-400 hover:text-blue-300 mr-2"
                       >
-                        View Certificate
+                        View Document
                       </button>
                       <button
-                        onClick={() => router.push(`/admin/assets/${asset._id}`)}
+                        onClick={() => router.push(`/admin/assets/${asset.assetId}`)}
                         className="text-purple-400 hover:text-purple-300"
                       >
                         Edit

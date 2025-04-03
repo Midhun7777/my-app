@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import connectDB from '@/app/lib/mongodb';
-import Admin from '@/app/models/Admin';
 import bcrypt from 'bcryptjs';
+import db from '../../../../lib/db';
 
 // This should be stored securely in environment variables
 const ADMIN_REGISTRATION_KEY = 'your-secure-admin-key';
@@ -9,104 +8,78 @@ const ADMIN_REGISTRATION_KEY = 'your-secure-admin-key';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    console.log('Received admin signup request:', { 
-      adminId: body.adminId,
-      name: body.name,
-      email: body.email 
-    });
-
-    const { adminId, name, email, password, adminKey } = body;
+    const { adminId, username, email, password, role } = body;
 
     // Validate required fields
-    if (!adminId || !name || !email || !password || !adminKey) {
-      console.log('Missing required fields');
+    if (!adminId || !username || !email || !password || !role) {
       return NextResponse.json(
-        { message: 'All fields are required' },
+        { success: false, message: 'All fields are required' },
         { status: 400 }
       );
     }
 
     // Validate admin key
-    if (adminKey !== ADMIN_REGISTRATION_KEY) {
-      console.log('Invalid admin key');
+    if (adminId !== ADMIN_REGISTRATION_KEY) {
       return NextResponse.json(
-        { message: 'Invalid admin registration key' },
+        { success: false, message: 'Invalid admin registration key' },
         { status: 401 }
       );
     }
 
-    // Connect to database
-    try {
-      await connectDB();
-      console.log('Connected to database successfully');
-    } catch (dbError) {
-      console.error('Database connection error:', dbError);
+    // Check if admin ID already exists
+    const existingAdminId = db.prepare('SELECT adminId FROM admins WHERE adminId = ?').get(adminId);
+    if (existingAdminId) {
       return NextResponse.json(
-        { message: 'Database connection failed' },
-        { status: 500 }
+        { success: false, message: 'Admin ID already exists' },
+        { status: 400 }
       );
     }
 
-    // Check if admin ID already exists
-    const existingAdmin = await Admin.findOne({ adminId });
-    console.log('Existing admin check:', existingAdmin ? 'Found' : 'Not found');
-    
-    if (existingAdmin) {
-      console.log('Admin ID already exists');
+    // Check if username already exists
+    const existingUsername = db.prepare('SELECT username FROM admins WHERE username = ?').get(username);
+    if (existingUsername) {
       return NextResponse.json(
-        { message: 'Admin ID already exists' },
+        { success: false, message: 'Username already exists' },
         { status: 400 }
       );
     }
 
     // Check if email already exists
-    const existingEmail = await Admin.findOne({ email });
-    console.log('Existing email check:', existingEmail ? 'Found' : 'Not found');
-    
+    const existingEmail = db.prepare('SELECT email FROM admins WHERE email = ?').get(email);
     if (existingEmail) {
-      console.log('Email already exists');
       return NextResponse.json(
-        { message: 'Email already exists' },
+        { success: false, message: 'Email already exists' },
         { status: 400 }
       );
     }
 
     // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    console.log('Password hashed successfully');
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create new admin
-    try {
-      const admin = await Admin.create({
-        adminId,
-        name,
-        email,
-        password: hashedPassword,
-      });
-      console.log('Admin created successfully:', {
-        adminId: admin.adminId,
-        name: admin.name,
-        email: admin.email
-      });
+    // Insert new admin
+    const stmt = db.prepare(`
+      INSERT INTO admins (
+        adminId, username, email, password, role
+      ) VALUES (?, ?, ?, ?, ?)
+    `);
 
-      // Return admin data (excluding password)
-      return NextResponse.json({
-        adminId: admin.adminId,
-        name: admin.name,
-        email: admin.email,
-      }, { status: 201 });
-    } catch (createError) {
-      console.error('Error creating admin:', createError);
-      return NextResponse.json(
-        { message: 'Failed to create admin account' },
-        { status: 500 }
-      );
-    }
+    stmt.run(
+      adminId,
+      username,
+      email.toLowerCase(),
+      hashedPassword,
+      role
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: 'Admin registered successfully'
+    }, { status: 201 });
+
   } catch (error) {
-    console.error('Admin signup error:', error);
+    console.error('Error creating admin:', error);
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { success: false, message: 'Failed to create admin' },
       { status: 500 }
     );
   }

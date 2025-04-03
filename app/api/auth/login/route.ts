@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '../../../lib/db';
-import Department from '../../../models/Department';
 import bcrypt from 'bcryptjs';
+import db from '../../../lib/db';
+
+interface Department {
+  departmentId: string;
+  departmentName: string;
+  email: string;
+  password: string;
+  sectionName: string;
+  employeeLevel: 'SC' | 'OS' | 'Head';
+}
 
 export async function POST(request: Request) {
   try {
@@ -14,15 +22,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Connect to database
-    await connectDB();
-
-    // Find department by departmentId
-    const department = await Department.findOne({ departmentId });
+    // Find department using SQLite with type assertion
+    const department = db.prepare(
+      'SELECT * FROM departments WHERE departmentId = ?'
+    ).get(departmentId) as Department | undefined;
 
     if (!department) {
       return NextResponse.json(
-        { message: 'Invalid credentials' },
+        { message: 'Invalid department ID or password' },
         { status: 401 }
       );
     }
@@ -32,17 +39,18 @@ export async function POST(request: Request) {
 
     if (!isValidPassword) {
       return NextResponse.json(
-        { message: 'Invalid credentials' },
+        { message: 'Invalid department ID or password' },
         { status: 401 }
       );
     }
 
-    // Return department data (excluding password)
+    // Return department data without sensitive information
     const departmentData = {
       departmentId: department.departmentId,
       departmentName: department.departmentName,
       email: department.email,
       sectionName: department.sectionName,
+      employeeLevel: department.employeeLevel
     };
 
     return NextResponse.json(departmentData);
@@ -53,4 +61,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}

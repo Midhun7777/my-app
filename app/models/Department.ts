@@ -1,5 +1,6 @@
 import { RowDataPacket } from 'mysql2';
-import pool from '../lib/db';
+import db from '../lib/db';
+import bcrypt from 'bcryptjs';
 
 export interface Department extends RowDataPacket {
   departmentId: string;
@@ -7,65 +8,79 @@ export interface Department extends RowDataPacket {
   email: string;
   password: string;
   sectionName: string;
-  employeeLevel: 'SC' | 'OS' | 'Head';
+  employeeLevel: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export async function createDepartment(department: Omit<Department, 'createdAt' | 'updatedAt'>) {
-  const [result] = await pool.execute(
-    `INSERT INTO departments (departmentId, departmentName, email, password, sectionName, employeeLevel, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-    [department.departmentId, department.departmentName, department.email, department.password, department.sectionName, department.employeeLevel]
+export async function createDepartment(data: Omit<Department, 'createdAt' | 'updatedAt'>): Promise<Department | null> {
+  const stmt = db.prepare(`
+    INSERT INTO departments (
+      departmentId, departmentName, email, password, 
+      sectionName, employeeLevel
+    ) VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(
+    data.departmentId,
+    data.departmentName,
+    data.email,
+    data.password,
+    data.sectionName,
+    data.employeeLevel
   );
-  return result;
+
+  return findDepartmentById(data.departmentId);
 }
 
-export async function findDepartmentById(departmentId: string) {
-  const [rows] = await pool.execute<Department[]>(
-    'SELECT * FROM departments WHERE departmentId = ?',
-    [departmentId]
-  );
-  return rows[0];
+export async function findDepartmentById(departmentId: string): Promise<Department | null> {
+  const stmt = db.prepare('SELECT * FROM departments WHERE departmentId = ?');
+  return stmt.get(departmentId) as Department | null;
 }
 
-export async function findDepartmentByEmail(email: string) {
-  const [rows] = await pool.execute<Department[]>(
-    'SELECT * FROM departments WHERE email = ?',
-    [email]
-  );
-  return rows[0];
+export async function findDepartmentByEmail(email: string): Promise<Department | null> {
+  const stmt = db.prepare('SELECT * FROM departments WHERE email = ?');
+  return stmt.get(email) as Department | null;
 }
 
-export async function updateDepartment(departmentId: string, updates: Partial<Department>) {
-  const [result] = await pool.execute(
-    `UPDATE departments 
-     SET ${Object.keys(updates).map(key => `${key} = ?`).join(', ')}, updatedAt = NOW()
-     WHERE departmentId = ?`,
-    [...Object.values(updates), departmentId]
-  );
-  return result;
+export async function updateDepartment(
+  departmentId: string,
+  data: Partial<Omit<Department, 'departmentId' | 'createdAt' | 'updatedAt'>>
+): Promise<Department | null> {
+  const fields = Object.keys(data);
+  if (fields.length === 0) return null;
+
+  const setClause = fields.map(field => `${field} = ?`).join(', ');
+  const values = [...fields.map(field => data[field as keyof typeof data]), departmentId];
+
+  const stmt = db.prepare(`
+    UPDATE departments 
+    SET ${setClause}
+    WHERE departmentId = ?
+  `);
+
+  stmt.run(...values);
+  return findDepartmentById(departmentId);
 }
 
-export async function deleteDepartment(departmentId: string) {
-  const [result] = await pool.execute(
-    'DELETE FROM departments WHERE departmentId = ?',
-    [departmentId]
-  );
-  return result;
+export async function deleteDepartment(departmentId: string): Promise<boolean> {
+  const stmt = db.prepare('DELETE FROM departments WHERE departmentId = ?');
+  const result = stmt.run(departmentId);
+  return result.changes > 0;
 }
 
-// SQL for creating the departments table
-export const createDepartmentsTableSQL = `
-CREATE TABLE IF NOT EXISTS departments (
-  departmentId VARCHAR(255) PRIMARY KEY,
-  departmentName VARCHAR(255) NOT NULL,
-  email VARCHAR(255) NOT NULL UNIQUE,
-  password VARCHAR(255) NOT NULL,
-  sectionName VARCHAR(255) NOT NULL,
-  employeeLevel ENUM('SC', 'OS', 'Head') NOT NULL,
-  createdAt DATETIME NOT NULL,
-  updatedAt DATETIME NOT NULL,
-  INDEX idx_email (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-`; 
+export async function getAllDepartments(): Promise<Department[]> {
+  const stmt = db.prepare('SELECT * FROM departments ORDER BY createdAt DESC');
+  return stmt.all() as Department[];
+}
+
+const departmentModel = {
+  createDepartment,
+  findDepartmentById,
+  findDepartmentByEmail,
+  updateDepartment,
+  deleteDepartment,
+  getAllDepartments
+};
+
+export default departmentModel;

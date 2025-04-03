@@ -1,46 +1,131 @@
 import { NextResponse } from 'next/server';
-import connectDB from '@/app/lib/mongodb';
-import Asset from '@/app/models/Asset';
-import OfficeAsset from '@/app/models/OfficeAsset';
+import db from '../../../lib/db';
+
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const asset = db.prepare('SELECT * FROM assets WHERE assetId = ?').get(params.id);
+    
+    if (!asset) {
+      return NextResponse.json(
+        { success: false, message: 'Asset not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(asset);
+  } catch (error) {
+    console.error('Error fetching asset:', error);
+    return NextResponse.json(
+      { success: false, message: 'Failed to fetch asset' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { status } = await request.json();
-    const { id } = params;
+    const body = await request.json();
+    const {
+      assetName,
+      assetType,
+      assignedTo,
+      status,
+      location,
+      purchaseDate,
+      lastMaintenance,
+      nextMaintenance,
+      condition,
+      notes,
+      employeeName,
+      employeeId,
+      section,
+      employeeLevel,
+      idDocument
+    } = body;
 
-    if (!status || !['pending', 'approved', 'rejected'].includes(status)) {
+    // Validate required fields
+    if (!assetName || !assetType || !status) {
       return NextResponse.json(
-        { message: 'Invalid status' },
+        { success: false, message: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    await connectDB();
+    // Additional validation for employee type assets
+    if (assetType === 'Employee') {
+      if (!employeeName || !employeeId || !section || !employeeLevel) {
+        return NextResponse.json(
+          { success: false, message: 'Missing required employee fields' },
+          { status: 400 }
+        );
+      }
+    }
 
-    const asset = await Asset.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true }
-    );
-
-    if (!asset) {
+    // Check if asset exists
+    const existingAsset = db.prepare('SELECT assetId FROM assets WHERE assetId = ?').get(params.id);
+    if (!existingAsset) {
       return NextResponse.json(
-        { message: 'Asset not found' },
+        { success: false, message: 'Asset not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(
-      { message: 'Asset status updated successfully', asset },
-      { status: 200 }
+    // Update asset
+    const stmt = db.prepare(`
+      UPDATE assets SET
+        assetName = ?,
+        assetType = ?,
+        assignedTo = ?,
+        status = ?,
+        location = ?,
+        purchaseDate = ?,
+        lastMaintenance = ?,
+        nextMaintenance = ?,
+        condition = ?,
+        notes = ?,
+        employeeName = ?,
+        employeeId = ?,
+        section = ?,
+        employeeLevel = ?,
+        idDocument = ?,
+        updatedAt = CURRENT_TIMESTAMP
+      WHERE assetId = ?
+    `);
+
+    stmt.run(
+      assetName,
+      assetType,
+      assignedTo,
+      status,
+      location,
+      purchaseDate,
+      lastMaintenance,
+      nextMaintenance,
+      condition,
+      notes,
+      employeeName,
+      employeeId,
+      section,
+      employeeLevel,
+      idDocument,
+      params.id
     );
+
+    return NextResponse.json({
+      success: true,
+      message: 'Asset updated successfully'
+    });
+
   } catch (error) {
-    console.error('Error updating asset status:', error);
+    console.error('Error updating asset:', error);
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { success: false, message: 'Failed to update asset' },
       { status: 500 }
     );
   }
@@ -51,25 +136,27 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await connectDB();
-    
-    const asset = await OfficeAsset.findByIdAndDelete(params.id);
-    
-    if (!asset) {
+    // Check if asset exists
+    const existingAsset = db.prepare('SELECT assetId FROM assets WHERE assetId = ?').get(params.id);
+    if (!existingAsset) {
       return NextResponse.json(
-        { message: 'Asset not found' },
+        { success: false, message: 'Asset not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(
-      { message: 'Asset deleted successfully' },
-      { status: 200 }
-    );
+    // Delete asset
+    db.prepare('DELETE FROM assets WHERE assetId = ?').run(params.id);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Asset deleted successfully'
+    });
+
   } catch (error) {
     console.error('Error deleting asset:', error);
     return NextResponse.json(
-      { message: 'Error deleting asset' },
+      { success: false, message: 'Failed to delete asset' },
       { status: 500 }
     );
   }
